@@ -1254,3 +1254,83 @@ func sortUniqueIntWithImitator(toBeSorted, imitator []int) {
 
 	return
 }
+
+//
+type scalarIntoVectorOp struct {
+	d        int
+	children int
+	dt       hm.Type
+}
+
+// Whether to limit the number of input parameters、-1:Unlimited?
+func (op scalarIntoVectorOp) Arity() int { return -1 }
+
+func (op scalarIntoVectorOp) Type() hm.Type { //ApplyOp will check type
+	a := hm.TypeVariable('a')
+	fnt := make([]hm.Type, op.children+1)
+	for i := range fnt {
+		fnt[i] = a
+	}
+
+	return hm.NewFnType(fnt...)
+}
+
+func (op scalarIntoVectorOp) InferShape(ds ...DimSizer) (tensor.Shape, error) {
+	retVal := ds[0].(tensor.Shape)
+	return retVal, nil
+}
+
+func (op scalarIntoVectorOp) Do(vals ...Value) (out Value, err error) {
+	switch op.dt { //NewVector -> tensor.Dense
+	case Float64:
+		dArr := []float64{}
+		for _, n := range vals {
+			dArr = append(dArr, n.Data().(float64))
+		}
+		out = tensor.New(tensor.WithBacking(dArr), tensor.WithShape(len(dArr))) //[]float64{0.5, 0.5}
+
+	case Float32:
+		dArr := []float32{}
+		for _, n := range vals {
+			dArr = append(dArr, n.Data().(float32))
+		}
+		out = tensor.New(tensor.WithBacking(dArr), tensor.WithShape(len(dArr)))
+	}
+
+	return
+}
+
+func (op scalarIntoVectorOp) ReturnsPtr() bool     { return true }
+func (op scalarIntoVectorOp) CallsExtern() bool    { return false }
+func (op scalarIntoVectorOp) OverwritesInput() int { return -1 }
+
+func (op scalarIntoVectorOp) WriteHash(h hash.Hash) {
+	h.Write([]byte("scalarIntoVectorOp"))
+	fmt.Fprintf(h, "dims: %d", op.d)
+}
+
+func (op scalarIntoVectorOp) Hashcode() uint32 { return simpleHash(op) }
+
+func (op scalarIntoVectorOp) String() string {
+	return fmt.Sprintf("scalarIntoVectorOp(dims=%d)", op.d)
+}
+
+func (op scalarIntoVectorOp) DiffWRT(inputs int) []bool {
+	retVal := make([]bool, inputs)
+	for i := range retVal {
+		retVal[i] = true
+	}
+	return retVal
+}
+
+func (op scalarIntoVectorOp) SymDiff(inputs Nodes, output *Node, grad *Node) (retVal Nodes, err error) {
+	retVal = make(Nodes, len(inputs))
+	for i := 0; i < len(inputs); i++ {
+		retVal[i] = grad
+	}
+	return
+}
+
+func (op scalarIntoVectorOp) DoDiff(ctx ExecutionContext, inputs Nodes, output *Node) error {
+	return nil
+}

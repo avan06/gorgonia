@@ -626,3 +626,45 @@ func containsDuplicate(slice []int) bool {
 
 	return false
 }
+
+// ScalarIntoVector multiple scalar convert into vector Node.
+func ScalarIntoVector(ns ...*Node) (*Node, error) {
+	var g *ExprGraph
+	var dt0, dt tensor.Dtype
+	var ok bool
+	// d := ns[0].shape.Dims()
+	if dt0, ok = ns[0].t.(tensor.Dtype); !ok {
+		return nil, errors.Errorf("Expected a scalar dtype for generate vector. %dth Node %v", 0, ns[0])
+	}
+	switch dt0 { //NewVector -> tensor.Dense
+	case Float64:
+	case Float32:
+	default:
+		return nil, errors.Errorf("%s not yet implemented for ScalarIntoVector(). %dth Node %v", dt.String(), 0, ns[0])
+	}
+	for i, n := range ns {
+		if !n.IsScalar() {
+			return nil, errors.Errorf("Expected Node to be a scalar. Got %dth Node %v instead", i, n)
+		}
+		if n.isInput() {
+			err := errors.Errorf("Cannot be an input nodes. %dth Node %v is an input", i, n)
+			return nil, err
+		}
+		if dt, ok = n.t.(tensor.Dtype); !ok {
+			return nil, errors.Errorf("Expected a scalar dtype for generate vector. %dth Node %v", i, n)
+		} else if dt0 != dt {
+			return nil, errors.Errorf("Node Dtype must be consistent. %dth Node %vR (%v != %v)", i, n, dt0, dt)
+		}
+		if g == nil && n.g != nil {
+			g = n.g
+		}
+	}
+	// return ApplyOp(op, ns...)
+	s := tensor.Shape(tensor.BorrowInts(1))
+	copy(s, []int{len(ns)})
+	tt := makeTensorType(1, dt)
+	op := scalarIntoVectorOp{d: 1, children: len(ns), dt: ns[0].t}
+
+	retVal := NewUniqueNode(WithType(tt), WithOp(op), WithChildren(ns), In(g), WithShape(s...))
+	return retVal, nil
+}
